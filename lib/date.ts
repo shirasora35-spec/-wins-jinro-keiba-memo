@@ -24,7 +24,7 @@ function addDaysPseudoJst(date: Date, days: number) {
  * Sun     -> yesterday/today/Mon
  * Mon is included because JRA sometimes has a three-day meeting.
  */
-export function getTargetRaceDates(now = new Date()) {
+export function getTargetRaceDates(now = new Date(), week: "current" | "last" = "current") {
   const jst = dateInJst(now);
   const dow = jst.getUTCDay();
 
@@ -33,7 +33,8 @@ export function getTargetRaceDates(now = new Date()) {
   else if (dow === 0) daysUntilSaturday = -1;
   else daysUntilSaturday = 6 - dow;
 
-  const sat = addDaysPseudoJst(jst, daysUntilSaturday);
+  // Keep the existing Sat/Sun/Mon window; test mode moves that entire window back.
+  const sat = addDaysPseudoJst(jst, daysUntilSaturday + (week === "last" ? -7 : 0));
   const sun = addDaysPseudoJst(sat, 1);
   const mon = addDaysPseudoJst(sat, 2);
 

@@ -8,8 +8,14 @@ import type { Diagnostics } from "../lib/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export default async function Home() {
-  const dates = getTargetRaceDates();
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
+  const isLastWeek = params.week === "last";
+  const dates = getTargetRaceDates(new Date(), isLastWeek ? "last" : "current");
 
   const [raceResult, discordResult] = await Promise.all([
     getRaces(dates),
@@ -36,16 +42,24 @@ export default async function Home() {
       <header className="hero">
         <div className="eyebrow">WINS 人狼</div>
         <h1>競馬メモ</h1>
-        <p>Discordの回顧メモから、今週出走する馬だけを自動で掘り起こします。</p>
+        <p>{isLastWeek
+          ? "先週の出走馬とDiscordの過去メモを照合しています。"
+          : "Discordの回顧メモから、今週出走する馬だけを自動で掘り起こします。"}</p>
+        {isLastWeek && (
+          <p role="status">
+            先週の開催・テストモード（{dates[0]} ～ {dates[dates.length - 1]}）
+            {" · "}<a href="/">今週の開催に戻る</a>
+          </p>
+        )}
         <div className="summary-card">
-          <span>今週のメモ馬</span>
+          <span>{isLastWeek ? "先週のメモ馬" : "今週のメモ馬"}</span>
           <strong>{uniqueHorses}</strong>
           <small>頭</small>
         </div>
       </header>
 
       <section className="content-shell">
-        <WeekTabs dates={dates} raceDates={raceDates} matches={matches} diagnostics={diagnostics} />
+        <WeekTabs key={dates[0]} dates={dates} raceDates={raceDates} matches={matches} diagnostics={diagnostics} />
       </section>
 
       <footer>

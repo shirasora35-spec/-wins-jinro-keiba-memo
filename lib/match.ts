@@ -113,9 +113,9 @@ function exactHorseMention(line: string, horseName: string) {
   if (!n.includes(h)) return false;
 
   const raw = line.normalize("NFKC");
-  const escaped = horseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escaped = horseName.normalize("NFKC").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}([^\\p{L}\\p{N}]|$)`, "u");
-  return re.test(raw) || cleanHeadingLine(line).startsWith(horseName);
+  return re.test(raw);
 }
 
 function trimExcerpt(lines: string[]) {
@@ -166,6 +166,10 @@ function splitMessageByHorse(content: string, horseNames: string[]) {
     arr.push(excerpt);
     result.set(targetHorse, arr);
   }
+
+  // Structured posts have explicit owners. Never reinterpret their prose as
+  // standalone mentions: a comparison with another runner is not that runner's memo.
+  if (lines.some((line) => structuredHorseHeader(line))) return result;
 
   // 2) 馬名単独見出し形式。
   // structured で取れた馬には重複追加しない。
