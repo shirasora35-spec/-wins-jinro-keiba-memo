@@ -134,6 +134,7 @@ export default function WeekTabs({
           <div><dt>取得レース</dt><dd>{diagnostics.raceCount}R / {diagnostics.runnerCount}頭</dd></div>
           <div><dt>Discord</dt><dd>{diagnostics.discordChannelCount}ch / {diagnostics.discordMessageCount}メッセージ</dd></div>
           <div><dt>更新</dt><dd>{formatJstTimestamp(diagnostics.generatedAt)}</dd></div>
+          <div><dt>表示方式</dt><dd>保存済みデータ（閲覧時の外部取得なし）</dd></div>
         </dl>
         {diagnostics.errors.length ? (
           <div className="error-box">

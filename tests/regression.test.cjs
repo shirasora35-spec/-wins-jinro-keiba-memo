@@ -16,8 +16,10 @@ function load(relative) {
 const { getTargetRaceDates } = load('lib/date.ts');
 const { matchRacesToMemos } = load('lib/match.ts');
 
-test('normal dates preserve the existing Sat/Sun/Mon window on every weekday', () => {
-  for (let day = 14; day <= 20; day++) {
+test('Monday keeps the possible three-day meeting; Tuesday switches to the next weekend', () => {
+  assert.deepEqual(getTargetRaceDates(new Date('2026-09-14T03:00:00Z')),
+    ['2026-09-12', '2026-09-13', '2026-09-14']);
+  for (let day = 15; day <= 20; day++) {
     assert.deepEqual(getTargetRaceDates(new Date(`2026-09-${day}T03:00:00Z`)),
       ['2026-09-19', '2026-09-20', '2026-09-21']);
   }
@@ -26,6 +28,8 @@ test('last week shifts all three dates and respects the JST Monday boundary', ()
   assert.deepEqual(getTargetRaceDates(new Date('2026-09-13T14:59:59Z'), 'last'),
     ['2026-09-05', '2026-09-06', '2026-09-07']);
   assert.deepEqual(getTargetRaceDates(new Date('2026-09-13T15:00:00Z'), 'last'),
+    ['2026-09-05', '2026-09-06', '2026-09-07']);
+  assert.deepEqual(getTargetRaceDates(new Date('2026-09-14T15:00:00Z'), 'last'),
     ['2026-09-12', '2026-09-13', '2026-09-14']);
   assert.deepEqual(getTargetRaceDates(new Date('2026-01-01T03:00:00Z'), 'last'),
     ['2025-12-27', '2025-12-28', '2025-12-29']);
@@ -58,4 +62,14 @@ test('prefix alone never attaches a longer horse name to another horse', () => {
 test('a comparison inside another horse section is not a memo for the mentioned runner', () => {
   assert.equal(match(`札幌9R 4着ピエナオルカ\n→比較相手は「${horse}」。\nこの馬自身は伸びなかった`).length, 0);
   assert.equal(match(`札幌9R 4着ピエナオルカ\n\n→比較相手は「${horse}」。`).length, 0);
+});
+
+test('public page only reads the published snapshot', () => {
+  const page = fs.readFileSync(path.join(__dirname, '..', 'app/page.tsx'), 'utf8');
+  assert.ok(page.includes('getPublishedSnapshot'));
+  assert.ok(page.includes('../lib/published'));
+  assert.ok(!page.includes('../lib/sync'));
+  assert.ok(!page.includes('getDiscordMemos'));
+  assert.ok(!page.includes('getRaces'));
+  assert.ok(!page.includes('matchRacesToMemos'));
 });

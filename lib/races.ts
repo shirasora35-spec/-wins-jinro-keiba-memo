@@ -70,7 +70,8 @@ function extractHorses($: CheerioAPI): RaceHorse[] {
   return [...unique.values()];
 }
 
-async function fetchHtml(url: string) {
+async function fetchHtml(url: string, counter: { value: number }) {
+  counter.value++;
   const response = await fetch(url, {
     headers: headers(),
     next: { revalidate: 1800 },
@@ -79,10 +80,10 @@ async function fetchHtml(url: string) {
   return response.text();
 }
 
-async function fetchNetkeibaDate(date: string): Promise<Race[]> {
+async function fetchNetkeibaDate(date: string, counter: { value: number }): Promise<Race[]> {
   const compact = compactDate(date);
   const listUrl = `https://race.netkeiba.com/top/race_list.html?kaisai_date=${compact}`;
-  const listHtml = await fetchHtml(listUrl);
+  const listHtml = await fetchHtml(listUrl, counter);
   const raceIds = parseRaceIds(listHtml);
   if (!raceIds.length) return [];
 
@@ -95,7 +96,7 @@ async function fetchNetkeibaDate(date: string): Promise<Race[]> {
       chunk.map(async (raceId) => {
         const sourceUrl = `https://race.netkeiba.com/race/shutuba.html?race_id=${raceId}`;
         try {
-          const html = await fetchHtml(sourceUrl);
+          const html = await fetchHtml(sourceUrl, counter);
           const $ = cheerio.load(html);
           const title = clean($("title").text());
           const headerText = clean($("body").text().slice(0, 2500));
@@ -165,15 +166,16 @@ export async function getRaces(dates: string[]) {
   const source = (process.env.RACE_SOURCE || "netkeiba").toLowerCase();
   const manual = parseManualRaces();
   const errors: string[] = [];
+  const counter = { value: 0 };
 
   if (source === "manual") {
-    return { races: manual.filter((r) => dates.includes(r.date)), errors, source: "manual" };
+    return { races: manual.filter((r) => dates.includes(r.date)), errors, source: "manual", externalRequestCount: 0 };
   }
 
   const races: Race[] = [];
   for (const date of dates) {
     try {
-      const dayRaces = await fetchNetkeibaDate(date);
+      const dayRaces = await fetchNetkeibaDate(date, counter);
       races.push(...dayRaces);
     } catch (error) {
       errors.push(`${date}: 出走馬データ取得失敗 (${error instanceof Error ? error.message : String(error)})`);
@@ -185,8 +187,9 @@ export async function getRaces(dates: string[]) {
       races: manual.filter((r) => dates.includes(r.date)),
       errors: [...errors, "自動取得に失敗したため MANUAL_RACES_JSON を使用しました。"],
       source: "manual-fallback",
+      externalRequestCount: counter.value,
     };
   }
 
-  return { races, errors, source: "netkeiba" };
+  return { races, errors, source: "netkeiba", externalRequestCount: counter.value };
 }

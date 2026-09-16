@@ -56,4 +56,41 @@ export type Diagnostics = {
   discordMessageCount: number;
   errors: string[];
   generatedAt: string;
+  discordSyncMode?: "initial" | "incremental" | "cached";
+  discordFetchedCount?: number;
+  externalRequestCount?: number;
+};
+
+export type DiscordChannelState = {
+  channelId: string;
+  channelName: string;
+  guildId?: string;
+  newestMessageId?: string;
+  updatedAt: string;
+};
+
+export type DiscordMemoStore = {
+  version: 1;
+  updatedAt: string;
+  channels: Record<string, DiscordChannelState>;
+  memos: DiscordMemo[];
+};
+
+export type RaceStore = {
+  version: 1;
+  weekStart: string;
+  updatedAt: string;
+  races: Race[];
+  errors: string[];
+  source: string;
+  externalRequestCount: number;
+};
+
+export type PublishedSnapshot = {
+  version: 1;
+  weekStart: string;
+  dates: string[];
+  raceDates: string[];
+  matches: MatchedHorse[];
+  diagnostics: Diagnostics;
 };

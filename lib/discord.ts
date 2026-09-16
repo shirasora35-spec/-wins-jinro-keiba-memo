@@ -1,4 +1,4 @@
-import { DiscordMemo } from "./types";
+import type { DiscordChannelState, DiscordMemo, DiscordMemoStore } from "./types";
 
 type DiscordRawMessage = {
   id: string;
@@ -38,8 +38,9 @@ function maxPerChannel() {
   return Math.min(Math.floor(value), 20_000);
 }
 
-async function discordFetch(path: string, token: string) {
+async function discordFetch(path: string, token: string, counter: { value: number }) {
   for (let attempt = 0; attempt < 4; attempt++) {
+    counter.value++;
     const response = await fetch(`${API}${path}`, {
       headers: {
         Authorization: `Bot ${token}`,
@@ -66,24 +67,33 @@ async function discordFetch(path: string, token: string) {
   throw new Error("Discord API rate limit: retry limit exceeded");
 }
 
-async function fetchChannel(channelId: string, token: string): Promise<DiscordChannel> {
-  const response = await discordFetch(`/channels/${channelId}`, token);
+async function fetchChannel(channelId: string, token: string, counter: { value: number }): Promise<DiscordChannel> {
+  const response = await discordFetch(`/channels/${channelId}`, token, counter);
   return response.json();
 }
 
-async function fetchChannelMessages(channelId: string, token: string, channel: DiscordChannel) {
+async function fetchChannelHistory(
+  channelId: string,
+  token: string,
+  channel: DiscordChannel,
+  counter: { value: number },
+) {
   const all: DiscordMemo[] = [];
   const cutoff = cutoffIso();
   const max = maxPerChannel();
   let before: string | undefined;
+  let newestMessageId: string | undefined;
+  let rawCount = 0;
 
-  while (all.length < max) {
+  while (rawCount < max) {
     const query = new URLSearchParams({ limit: "100" });
     if (before) query.set("before", before);
 
-    const response = await discordFetch(`/channels/${channelId}/messages?${query.toString()}`, token);
+    const response = await discordFetch(`/channels/${channelId}/messages?${query.toString()}`, token, counter);
     const batch = (await response.json()) as DiscordRawMessage[];
     if (!batch.length) break;
+    rawCount += batch.length;
+    newestMessageId ||= batch[0]?.id;
 
     for (const msg of batch) {
       if (!msg.content?.trim()) continue;
@@ -110,47 +120,167 @@ async function fetchChannelMessages(channelId: string, token: string, channel: D
     before = oldest.id;
   }
 
-  return all.slice(0, max);
+  return { messages: all.slice(0, max), newestMessageId };
 }
 
-export async function getDiscordMemos() {
+function compareSnowflakes(a: string, b: string) {
+  try {
+    const aa = BigInt(a);
+    const bb = BigInt(b);
+    return aa < bb ? -1 : aa > bb ? 1 : 0;
+  } catch {
+    return a.localeCompare(b);
+  }
+}
+
+function toMemo(msg: DiscordRawMessage, channelId: string, channel: DiscordChannel): DiscordMemo | null {
+  if (!msg.content?.trim()) return null;
+  const guildId = msg.guild_id || channel.guild_id;
+  return {
+    id: msg.id,
+    channelId,
+    channelName: channel.name || channelId,
+    guildId,
+    authorName: msg.author?.global_name || msg.author?.username || "不明",
+    content: msg.content,
+    timestamp: msg.timestamp,
+    messageUrl: guildId
+      ? `https://discord.com/channels/${guildId}/${channelId}/${msg.id}`
+      : undefined,
+  };
+}
+
+async function fetchNewMessages(
+  channelId: string,
+  token: string,
+  channel: DiscordChannel,
+  afterId: string,
+  counter: { value: number },
+) {
+  const messages: DiscordMemo[] = [];
+  const max = maxPerChannel();
+  let before: string | undefined;
+  let newestMessageId = afterId;
+  let rawCount = 0;
+  let reachedPrevious = false;
+
+  while (rawCount < max) {
+    // Discord returns newest -> oldest. Walk backwards until the previous
+    // high-water mark so bursts larger than 100 messages cannot leave gaps.
+    const query = new URLSearchParams({ limit: "100" });
+    if (before) query.set("before", before);
+    const response = await discordFetch(`/channels/${channelId}/messages?${query.toString()}`, token, counter);
+    const batch = (await response.json()) as DiscordRawMessage[];
+    if (!batch.length) break;
+    rawCount += batch.length;
+
+    if (!before && batch[0] && compareSnowflakes(batch[0].id, newestMessageId) > 0) {
+      newestMessageId = batch[0].id;
+    }
+    for (const raw of batch) {
+      if (compareSnowflakes(raw.id, afterId) <= 0) {
+        reachedPrevious = true;
+        break;
+      }
+      const memo = toMemo(raw, channelId, channel);
+      if (memo) messages.push(memo);
+    }
+
+    const oldest = batch[batch.length - 1];
+    if (reachedPrevious || batch.length < 100 || !oldest) break;
+    before = oldest.id;
+  }
+
+  return { messages: messages.slice(0, max), newestMessageId };
+}
+
+export async function syncDiscordMemos(previous?: DiscordMemoStore) {
   const token = process.env.DISCORD_BOT_TOKEN?.trim();
   const channelIds = getChannelIds();
 
   if (!token) {
     return {
-      memos: [] as DiscordMemo[],
+      store: previous,
       errors: ["DISCORD_BOT_TOKEN が設定されていません。"],
       channelCount: channelIds.length,
+      fetchedCount: 0,
+      externalRequestCount: 0,
+      mode: previous ? "incremental" as const : "initial" as const,
     };
   }
   if (!channelIds.length) {
     return {
-      memos: [] as DiscordMemo[],
+      store: previous,
       errors: ["DISCORD_CHANNEL_IDS が設定されていません。"],
       channelCount: 0,
+      fetchedCount: 0,
+      externalRequestCount: 0,
+      mode: previous ? "incremental" as const : "initial" as const,
     };
   }
 
   const errors: string[] = [];
-  const merged: DiscordMemo[] = [];
+  const counter = { value: 0 };
+  const channels: Record<string, DiscordChannelState> = { ...(previous?.channels || {}) };
+  const merged = new Map((previous?.memos || []).map((memo) => [memo.id, memo]));
+  let fetchedCount = 0;
+  let usedInitial = false;
 
   // Sequential by channel so Discord rate limits are easier to respect.
   for (const channelId of channelIds) {
     try {
-      const channel = await fetchChannel(channelId, token);
-      const messages = await fetchChannelMessages(channelId, token, channel);
-      merged.push(...messages);
+      const oldState = previous?.channels[channelId];
+      const channel: DiscordChannel = oldState
+        ? { id: channelId, name: oldState.channelName, guild_id: oldState.guildId }
+        : await fetchChannel(channelId, token, counter);
+      const result = oldState?.newestMessageId
+        ? await fetchNewMessages(channelId, token, channel, oldState.newestMessageId, counter)
+        : await fetchChannelHistory(channelId, token, channel, counter);
+      usedInitial ||= !oldState?.newestMessageId;
+      fetchedCount += result.messages.length;
+      for (const memo of result.messages) merged.set(memo.id, memo);
+      channels[channelId] = {
+        channelId,
+        channelName: channel.name || channelId,
+        guildId: channel.guild_id,
+        newestMessageId: result.newestMessageId || oldState?.newestMessageId,
+        updatedAt: new Date().toISOString(),
+      };
     } catch (error) {
       errors.push(`${channelId}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  const unique = new Map<string, DiscordMemo>();
-  for (const memo of merged) unique.set(memo.id, memo);
-  const memos = [...unique.values()].sort(
+  const cutoff = cutoffIso();
+  const memos = [...merged.values()]
+    .filter((memo) => memo.timestamp >= cutoff)
+    .sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 
-  return { memos, errors, channelCount: channelIds.length };
+  const store: DiscordMemoStore = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    channels,
+    memos,
+  };
+
+  return {
+    store,
+    errors,
+    channelCount: channelIds.length,
+    fetchedCount,
+    externalRequestCount: counter.value,
+    mode: usedInitial ? "initial" as const : "incremental" as const,
+  };
+}
+
+/** Legacy helper kept for local diagnostics. Public page rendering never calls it. */
+export async function getDiscordMemos() {
+  const result = await syncDiscordMemos();
+  return {
+    memos: result.store?.memos || [],
+    errors: result.errors,
+    channelCount: result.channelCount,
+  };
 }

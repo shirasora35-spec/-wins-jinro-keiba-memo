@@ -31,6 +31,9 @@ export function getTargetRaceDates(now = new Date(), week: "current" | "last" = 
   let daysUntilSaturday: number;
   if (dow === 6) daysUntilSaturday = 0;
   else if (dow === 0) daysUntilSaturday = -1;
+  // Monday can be the third day of a JRA meeting. Keep that meeting visible
+  // through Monday; switch to the upcoming weekend from Tuesday onward.
+  else if (dow === 1) daysUntilSaturday = -2;
   else daysUntilSaturday = 6 - dow;
 
   // Keep the existing Sat/Sun/Mon window; test mode moves that entire window back.

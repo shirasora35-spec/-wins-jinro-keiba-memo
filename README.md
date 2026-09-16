@@ -2,6 +2,51 @@
 
 Discordに残してある競馬の回顧メモと、その週のJRA出走馬を照合し、**今週出走するメモ馬だけ**を公開サイトに表示するNext.jsアプリです。
 
+## 更新と表示の構成
+
+公開ページはDiscordやnetkeibaを直接取得しません。Vercel Cronまたは保護された管理APIが、取得・照合・保存を先に済ませます。閲覧時は非公開Vercel Blobに保存した週別スナップショットだけを読みます。
+
+1. Discordメモを初回だけ履歴取得し、以後はチャンネルごとの最新メッセージID以降だけ増分取得
+2. 今週分のnetkeiba出走情報だけを指定日に更新
+3. 出走馬と保存済みメモを照合
+4. `keiba-cache/snapshots/YYYY-MM-DD.json` に完成済み表示データを保存
+5. 公開ページは保存済みJSONだけを表示
+
+保存データは非公開Blobです。Discord Bot Token、Blob認証情報、Cron Secretはいずれもクライアントへ送信しません。
+
+## 定期更新（日本時間）
+
+- 月曜 5時台: Discord週末回顧メモのみ増分更新
+- 木曜 16時台: Discord増分更新 + 土日月の出走情報更新 + 再照合
+- 金曜 16時台: 同上（馬番・枠順公開後の更新）
+- 土曜 6時30分台: 当日分だけ出走情報更新 + 再照合
+- 日曜 6時30分台: 当日分だけ出走情報更新 + 再照合
+- 月曜 6時30分台: 3日間開催の月曜分だけ更新 + 再照合
+
+CronはUTCで`vercel.json`に定義しています。Hobbyプランでは実行時刻に最大59分程度の幅があります。
+
+## 永続化
+
+Vercel Blob（private）を使用します。
+
+- `keiba-cache/discord-memos.json`: メモ本体とチャンネル別の最新メッセージID
+- `keiba-cache/races/YYYY-MM-DD.json`: 週単位の出走情報
+- `keiba-cache/snapshots/YYYY-MM-DD.json`: 公開ページ用の照合済みデータ
+
+ローカル開発では、Blob接続がなければ同じ構造を`.data/`に保存します。
+
+## 管理用の手動更新
+
+公開画面に更新ボタンはありません。`CRON_SECRET`と同じBearer認証が必要です。
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  "https://wins-jinro-keiba-memo-vercel-v3.vercel.app/api/admin/sync?scope=all"
+```
+
+`scope`は`all`、`discord`、`races`、`today`のいずれかです。SecretをURLへ含めないでください。
+
 ## 主な機能
 
 - Discordの複数チャンネルを横断して過去メッセージを取得
