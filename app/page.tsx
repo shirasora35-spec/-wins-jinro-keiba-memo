@@ -3,7 +3,7 @@ import { getTargetRaceDates } from "../lib/date";
 import { getPublishedSnapshot } from "../lib/published";
 import type { Diagnostics, PublishedSnapshot } from "../lib/types";
 
-export const revalidate = 60;
+export const runtime = "edge";
 
 export default async function Home({
   searchParams,
