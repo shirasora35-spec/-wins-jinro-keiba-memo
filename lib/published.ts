@@ -9,5 +9,14 @@ export async function getPublishedSnapshot(weekStart: string) {
     useCache: true,
   });
   if (!result || result.statusCode !== 200 || !result.stream) return null;
-  return await new Response(result.stream).json() as PublishedSnapshot;
+  const snapshot = await new Response(result.stream).json() as PublishedSnapshot;
+  return {
+    ...snapshot,
+    matches: snapshot.matches.map((horse) => ({
+      ...horse,
+      // The UI displays excerpt. Do not serialize the same full multi-horse
+      // Discord post repeatedly for every matching horse and both weeks.
+      memos: horse.memos.map((memo) => ({ ...memo, originalContent: "" })),
+    })),
+  };
 }

@@ -235,3 +235,19 @@ test('storage uses the canonical pre-read generation for conditional writes', as
     if (oldStore === undefined) delete process.env.BLOB_STORE_ID; else process.env.BLOB_STORE_ID = oldStore;
   }
 });
+
+test('published payload keeps displayed excerpts but excludes duplicated full posts', async () => {
+  const oldStore = process.env.BLOB_STORE_ID;
+  process.env.BLOB_STORE_ID = 'test-only';
+  const snapshot = {matches:[{horseName: horse, memos:[{excerpt:'【A】この馬のメモ', originalContent:'全頭分の長文'}]}]};
+  const { getPublishedSnapshot } = load('lib/published.ts', {'@vercel/blob': {
+    get: async () => ({statusCode:200, stream:Response.json(snapshot).body}),
+  }});
+  try {
+    const result = await getPublishedSnapshot('2026-09-19');
+    assert.equal(result.matches[0].memos[0].excerpt, '【A】この馬のメモ');
+    assert.equal(result.matches[0].memos[0].originalContent, '');
+  } finally {
+    if (oldStore === undefined) delete process.env.BLOB_STORE_ID; else process.env.BLOB_STORE_ID = oldStore;
+  }
+});
