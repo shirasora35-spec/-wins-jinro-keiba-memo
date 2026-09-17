@@ -19,10 +19,10 @@ export async function POST(request: Request) {
   try {
     const { syncPublishedData } = await import("../../../../lib/sync");
     return Response.json(await syncPublishedData(requested as SyncScope));
-  } catch (error) {
+  } catch {
     return Response.json({
       ok: false,
-      error: error instanceof Error ? error.message : "Sync failed",
+      error: "Sync failed. Check storage configuration and retry.",
     }, { status: 500 });
   }
 }

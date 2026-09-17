@@ -22,13 +22,76 @@ function ymdInJst(now: Date) {
   }).format(now);
 }
 
-function mergeRaces(previous: Race[], incoming: Race[], refreshedDates: string[]) {
-  const incomingDates = new Set(incoming.map((race) => race.date));
-  const replaceDates = new Set(refreshedDates.filter((date) => incomingDates.has(date)));
+export function mergeRaces(previous: Race[], incoming: Race[], successfulDates: string[], failedRaceIds: string[] = []) {
+  const replaceDates = new Set(successfulDates);
   return [
-    ...previous.filter((race) => !replaceDates.has(race.date)),
+    ...previous.filter((race) => !replaceDates.has(race.date) || failedRaceIds.includes(`${race.date}:${race.raceId}`)),
     ...incoming,
   ].sort((a, b) => a.date.localeCompare(b.date) || a.venue.localeCompare(b.venue, "ja") || a.raceNumber - b.raceNumber);
+}
+
+function makeSnapshot(
+  weekStart: string,
+  dates: string[],
+  raceStore: RaceStore,
+  discordStore: DiscordMemoStore | undefined,
+  options: {
+    discordErrors?: string[];
+    discordMode?: "initial" | "incremental" | "cached";
+    discordFetchedCount?: number;
+    externalRequestCount?: number;
+  } = {},
+): PublishedSnapshot {
+  const memos = discordStore?.memos || [];
+  return {
+    version: 1,
+    weekStart,
+    dates,
+    raceDates: dates.filter((date) => raceStore.races.some((race) => race.date === date)),
+    matches: matchRacesToMemos(raceStore.races, memos),
+    diagnostics: {
+      raceSource: raceStore.source,
+      raceDates: dates,
+      raceCount: raceStore.races.length,
+      runnerCount: raceStore.races.reduce((sum, race) => sum + race.horses.length, 0),
+      discordChannelCount: Object.keys(discordStore?.channels || {}).length,
+      discordMessageCount: memos.length,
+      errors: [...raceStore.errors, ...(options.discordErrors || [])],
+      generatedAt: new Date().toISOString(),
+      discordSyncMode: options.discordMode || "cached",
+      discordFetchedCount: options.discordFetchedCount || 0,
+      externalRequestCount: options.externalRequestCount || 0,
+    },
+  };
+}
+
+async function backfillPreviousWeek(discordStore: DiscordMemoStore | undefined, now: Date) {
+  const dates = getTargetRaceDates(now, "last");
+  const weekStart = dates[0];
+  const existingSnapshot = await readJson<PublishedSnapshot>(snapshotPath(weekStart), true);
+  if (existingSnapshot) return { externalRequestCount: 0 };
+
+  const oldRaces = await readJson<RaceStore>(raceStorePath(weekStart), true);
+  const result = await getRaces(dates);
+  if (!result.successfulDates.length) {
+    return { externalRequestCount: result.externalRequestCount };
+  }
+
+  const raceStore: RaceStore = {
+    version: 1,
+    weekStart,
+    updatedAt: new Date().toISOString(),
+    races: mergeRaces(oldRaces?.value.races || [], result.races, result.successfulDates, result.failedRaceIds),
+    errors: result.errors,
+    source: result.source,
+    externalRequestCount: result.externalRequestCount,
+  };
+  await writeJson(raceStorePath(weekStart), raceStore, oldRaces?.etag);
+  const snapshot = makeSnapshot(weekStart, dates, raceStore, discordStore, {
+    externalRequestCount: result.externalRequestCount,
+  });
+  await writeJson(snapshotPath(weekStart), snapshot);
+  return { externalRequestCount: result.externalRequestCount, weekStart };
 }
 
 export async function syncPublishedData(scope: SyncScope = "all", now = new Date()) {
@@ -77,7 +140,7 @@ export async function syncPublishedData(scope: SyncScope = "all", now = new Date
       version: 1,
       weekStart,
       updatedAt: new Date().toISOString(),
-      races: mergeRaces(raceStore.races, result.races, refreshDates),
+      races: mergeRaces(raceStore.races, result.races, result.successfulDates, result.failedRaceIds),
       errors: result.errors,
       source: result.source,
       externalRequestCount: result.externalRequestCount,
@@ -85,32 +148,20 @@ export async function syncPublishedData(scope: SyncScope = "all", now = new Date
     await writeJson(raceStorePath(weekStart), raceStore, oldRaces?.etag);
   }
 
-  const memos = discordStore?.memos || [];
-  const matches = matchRacesToMemos(raceStore.races, memos);
-  const raceDates = dates.filter((date) => raceStore.races.some((race) => race.date === date));
-  const snapshot: PublishedSnapshot = {
-    version: 1,
-    weekStart,
-    dates,
-    raceDates,
-    matches,
-    diagnostics: {
-      raceSource: raceStore.source,
-      raceDates: dates,
-      raceCount: raceStore.races.length,
-      runnerCount: raceStore.races.reduce((sum, race) => sum + race.horses.length, 0),
-      discordChannelCount: Object.keys(discordStore?.channels || {}).length,
-      discordMessageCount: memos.length,
-      errors: [...raceStore.errors, ...discordErrors],
-      generatedAt: new Date().toISOString(),
-      discordSyncMode: discordMode,
-      discordFetchedCount,
-      externalRequestCount,
-    },
-  };
+  const snapshot = makeSnapshot(weekStart, dates, raceStore, discordStore, {
+    discordErrors,
+    discordMode,
+    discordFetchedCount,
+    externalRequestCount,
+  });
 
   const oldSnapshot = await readJson<PublishedSnapshot>(snapshotPath(weekStart), true);
   await writeJson(snapshotPath(weekStart), snapshot, oldSnapshot?.etag);
+
+  const backfill = scope === "all"
+    ? await backfillPreviousWeek(discordStore, now)
+    : { externalRequestCount: 0 };
+  externalRequestCount += backfill.externalRequestCount;
 
   return {
     ok: true,
@@ -119,10 +170,11 @@ export async function syncPublishedData(scope: SyncScope = "all", now = new Date
     raceCount: snapshot.diagnostics.raceCount,
     runnerCount: snapshot.diagnostics.runnerCount,
     memoCount: snapshot.diagnostics.discordMessageCount,
-    matchedHorseCount: new Set(matches.map((m) => `${m.date}:${m.raceId}:${m.horseName}`)).size,
+    matchedHorseCount: new Set(snapshot.matches.map((m) => `${m.date}:${m.raceId}:${m.horseName}`)).size,
     discordMode,
     discordFetchedCount,
     externalRequestCount,
+    backfilledWeekStart: "weekStart" in backfill ? backfill.weekStart : undefined,
     errors: snapshot.diagnostics.errors,
     generatedAt: snapshot.diagnostics.generatedAt,
   };

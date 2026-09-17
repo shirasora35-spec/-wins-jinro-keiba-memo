@@ -23,10 +23,10 @@ export async function GET(request: Request) {
   try {
     const { syncPublishedData } = await import("../../../../lib/sync");
     return Response.json(await syncPublishedData(scope));
-  } catch (error) {
+  } catch {
     return Response.json({
       ok: false,
-      error: error instanceof Error ? error.message : "Sync failed",
+      error: "Sync failed. Check storage configuration and retry.",
     }, { status: 500 });
   }
 }

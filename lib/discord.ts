@@ -47,18 +47,19 @@ async function discordFetch(path: string, token: string, counter: { value: numbe
         "User-Agent": "WINS-Jinro-Keiba-Memo/1.0",
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(15000),
     });
 
     if (response.status === 429) {
       const payload = await response.json().catch(() => ({}));
-      const retryAfter = Math.max(0.5, Number(payload?.retry_after || 1));
+      const retryAfter = Math.min(10, Math.max(0.5, Number(payload?.retry_after || 1)));
       await new Promise((r) => setTimeout(r, retryAfter * 1000));
       continue;
     }
 
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`Discord API ${response.status}: ${body.slice(0, 180)}`);
+      // Never forward upstream response bodies, request headers or credentials.
+      throw new Error(`Discord API ${response.status}`);
     }
 
     return response;
@@ -171,7 +172,7 @@ async function fetchNewMessages(
     if (before) query.set("before", before);
     const response = await discordFetch(`/channels/${channelId}/messages?${query.toString()}`, token, counter);
     const batch = (await response.json()) as DiscordRawMessage[];
-    if (!batch.length) break;
+    if (!batch.length) { reachedPrevious = true; break; }
     rawCount += batch.length;
 
     if (!before && batch[0] && compareSnowflakes(batch[0].id, newestMessageId) > 0) {
@@ -187,9 +188,13 @@ async function fetchNewMessages(
     }
 
     const oldest = batch[batch.length - 1];
-    if (reachedPrevious || batch.length < 100 || !oldest) break;
+    if (reachedPrevious || batch.length < 100 || !oldest) { reachedPrevious = true; break; }
     before = oldest.id;
   }
+
+  // Do not advance beyond an unprocessed gap when a very large backlog hits
+  // the configured batch limit. Existing saved messages/cursor remain intact.
+  if (!reachedPrevious) throw new Error("新着メモが1回の取得上限を超えました");
 
   return { messages: messages.slice(0, max), newestMessageId };
 }
@@ -246,8 +251,8 @@ export async function syncDiscordMemos(previous?: DiscordMemoStore) {
         newestMessageId: result.newestMessageId || oldState?.newestMessageId,
         updatedAt: new Date().toISOString(),
       };
-    } catch (error) {
-      errors.push(`${channelId}: ${error instanceof Error ? error.message : String(error)}`);
+    } catch {
+      errors.push(`Discordチャンネル${channelIds.indexOf(channelId) + 1}: 更新に失敗しました（接続・権限・取得上限を確認）。保存済みメモを保持します。`);
     }
   }
 

@@ -135,6 +135,8 @@ export default function WeekTabs({
           <div><dt>Discord</dt><dd>{diagnostics.discordChannelCount}ch / {diagnostics.discordMessageCount}メッセージ</dd></div>
           <div><dt>更新</dt><dd>{formatJstTimestamp(diagnostics.generatedAt)}</dd></div>
           <div><dt>表示方式</dt><dd>保存済みデータ（閲覧時の外部取得なし）</dd></div>
+          <div><dt>メモ更新</dt><dd>{diagnostics.discordSyncMode === "initial" ? "初回取得" : diagnostics.discordSyncMode === "incremental" ? "増分更新" : "保存済みメモを使用"} / 新着{diagnostics.discordFetchedCount || 0}件</dd></div>
+          <div><dt>前回バッチの外部取得</dt><dd>{diagnostics.externalRequestCount || 0}回（閲覧時は0回）</dd></div>
         </dl>
         {diagnostics.errors.length ? (
           <div className="error-box">
