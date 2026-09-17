@@ -1,6 +1,7 @@
 import { get, put } from "@vercel/blob";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { classifySyncError, SyncStorageError } from "./sync-error";
 
 export type StoredJson<T> = {
   value: T;
@@ -34,10 +35,14 @@ export async function readJson<T>(pathname: string, fresh = false): Promise<Stor
   // for its Blob store to be connected. Sync writes still fail explicitly.
   if (!hasBlobStorage()) return null;
 
-  const result = await get(pathname, { access: "private", useCache: !fresh });
-  if (!result || result.statusCode !== 200 || !result.stream) return null;
-  const value = await new Response(result.stream).json() as T;
-  return { value, etag: result.blob.etag };
+  try {
+    const result = await get(pathname, { access: "private", useCache: !fresh });
+    if (!result || result.statusCode !== 200 || !result.stream) return null;
+    const value = await new Response(result.stream).json() as T;
+    return { value, etag: result.blob.etag };
+  } catch (error) {
+    throw new SyncStorageError("storage-read", classifySyncError(error));
+  }
 }
 
 export async function writeJson<T>(pathname: string, value: T, etag?: string) {
@@ -54,13 +59,15 @@ export async function writeJson<T>(pathname: string, value: T, etag?: string) {
     throw new Error("Persistent Blob storage is not configured");
   }
 
-  await put(pathname, body, {
+  try { await put(pathname, body, {
     access: "private",
     contentType: "application/json; charset=utf-8",
     allowOverwrite: true,
     cacheControlMaxAge: 60,
     ...(etag ? { ifMatch: etag } : {}),
-  });
+  }); } catch (error) {
+    throw new SyncStorageError("storage-write", classifySyncError(error));
+  }
 }
 
 export function discordStorePath() {

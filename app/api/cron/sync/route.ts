@@ -1,4 +1,5 @@
 import { isAuthorizedSyncRequest } from "../../../../lib/admin-auth";
+import { reportSyncFailure } from "../../../../lib/sync-error";
 import type { SyncScope } from "../../../../lib/sync";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +24,12 @@ export async function GET(request: Request) {
   try {
     const { syncPublishedData } = await import("../../../../lib/sync");
     return Response.json(await syncPublishedData(scope));
-  } catch {
+  } catch (error) {
+    const diagnostic = reportSyncFailure(error);
     return Response.json({
       ok: false,
       error: "Sync failed. Check storage configuration and retry.",
+      diagnostic,
     }, { status: 500 });
   }
 }
