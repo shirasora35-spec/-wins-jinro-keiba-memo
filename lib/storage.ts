@@ -1,4 +1,4 @@
-import { get, put } from "@vercel/blob";
+import { get, head, put, BlobNotFoundError } from "@vercel/blob";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { classifySyncError, SyncStorageError } from "./sync-error";
@@ -36,11 +36,16 @@ export async function readJson<T>(pathname: string, fresh = false): Promise<Stor
   if (!hasBlobStorage()) return null;
 
   try {
+    // Read the storage API's canonical generation before the body. The HTTP
+    // download ETag can differ from the write API ETag. Never drop ifMatch or
+    // retry a conflict as an unconditional overwrite.
+    const metadata = fresh ? await head(pathname) : undefined;
     const result = await get(pathname, { access: "private", useCache: !fresh });
     if (!result || result.statusCode !== 200 || !result.stream) return null;
     const value = await new Response(result.stream).json() as T;
-    return { value, etag: result.blob.etag };
+    return { value, etag: metadata?.etag || result.blob.etag };
   } catch (error) {
+    if (error instanceof BlobNotFoundError) return null;
     throw new SyncStorageError("storage-read", classifySyncError(error));
   }
 }
@@ -63,6 +68,7 @@ export async function writeJson<T>(pathname: string, value: T, etag?: string) {
     access: "private",
     contentType: "application/json; charset=utf-8",
     allowOverwrite: true,
+    addRandomSuffix: false,
     cacheControlMaxAge: 60,
     ...(etag ? { ifMatch: etag } : {}),
   }); } catch (error) {

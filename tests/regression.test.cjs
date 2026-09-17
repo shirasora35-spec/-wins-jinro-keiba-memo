@@ -208,3 +208,30 @@ test('admin endpoints reject missing and incorrect credentials without starting 
     if (oldSecret === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = oldSecret;
   }
 });
+
+test('storage uses the canonical pre-read generation for conditional writes', async () => {
+  const oldVercel = process.env.VERCEL;
+  const oldStore = process.env.BLOB_STORE_ID;
+  process.env.VERCEL = '1';
+  process.env.BLOB_STORE_ID = 'test-only';
+  const calls = [];
+  class NotFound extends Error {}
+  const { readJson, writeJson } = load('lib/storage.ts', {
+    '@vercel/blob': {
+      BlobNotFoundError: NotFound,
+      head: async pathname => { calls.push('head'); if (pathname === 'missing') throw new NotFound(); return {etag: 'canonical-generation'}; },
+      get: async () => { calls.push('get'); return {statusCode: 200, stream: new Response('{"ok":true}').body, blob: {etag:'"http-download-generation"'}}; },
+      put: async (pathname, body, options) => { calls.push('put'); assert.equal(options.ifMatch, 'canonical-generation'); assert.equal(options.addRandomSuffix, false); },
+    },
+    './sync-error': {classifySyncError: () => 'TEST', SyncStorageError: class extends Error {}},
+  });
+  try {
+    const result = await readJson('existing', true);
+    await writeJson('existing', result.value, result.etag);
+    assert.deepEqual(calls, ['head', 'get', 'put']);
+    assert.equal(await readJson('missing', true), null);
+  } finally {
+    if (oldVercel === undefined) delete process.env.VERCEL; else process.env.VERCEL = oldVercel;
+    if (oldStore === undefined) delete process.env.BLOB_STORE_ID; else process.env.BLOB_STORE_ID = oldStore;
+  }
+});
