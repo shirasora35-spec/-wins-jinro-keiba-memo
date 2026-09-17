@@ -14,6 +14,17 @@ export default function PublishedPage({
   const searchParams = useSearchParams();
   const isLastWeek = searchParams.get("week") === "last";
   const snapshot = isLastWeek ? last : current;
+
+  return <PublishedView snapshot={snapshot} isLastWeek={isLastWeek} />;
+}
+
+export function PublishedView({
+  snapshot,
+  isLastWeek,
+}: {
+  snapshot: PublishedSnapshot;
+  isLastWeek: boolean;
+}) {
   const dates = snapshot.dates;
   const matches = snapshot.matches;
   const uniqueHorses = new Set(matches.map((m) => `${m.date}:${m.raceId}:${m.horseName}`)).size;

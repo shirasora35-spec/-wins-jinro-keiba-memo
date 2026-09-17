@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import PublishedPage from "../components/published-page";
+import PublishedPage, { PublishedView } from "../components/published-page";
 import { getTargetRaceDates } from "../lib/date";
 import { getPublishedSnapshot } from "../lib/published";
 import type { PublishedSnapshot } from "../lib/types";
@@ -37,11 +37,14 @@ export default async function Home() {
     getPublishedSnapshot(lastDates[0]),
   ]);
 
+  const current = currentSaved || emptySnapshot(currentDates);
+  const last = lastSaved || emptySnapshot(lastDates);
+
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<PublishedView snapshot={current} isLastWeek={false} />}>
       <PublishedPage
-        current={currentSaved || emptySnapshot(currentDates)}
-        last={lastSaved || emptySnapshot(lastDates)}
+        current={current}
+        last={last}
       />
     </Suspense>
   );
