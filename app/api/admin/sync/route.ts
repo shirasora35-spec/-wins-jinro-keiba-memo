@@ -1,5 +1,5 @@
 import { isAuthorizedSyncRequest } from "../../../../lib/admin-auth";
-import { syncPublishedData, type SyncScope } from "../../../../lib/sync";
+import type { SyncScope } from "../../../../lib/sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -17,6 +17,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const { syncPublishedData } = await import("../../../../lib/sync");
     return Response.json(await syncPublishedData(requested as SyncScope));
   } catch (error) {
     return Response.json({

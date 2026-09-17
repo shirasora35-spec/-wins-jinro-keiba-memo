@@ -1,5 +1,5 @@
 import { isAuthorizedSyncRequest } from "../../../../lib/admin-auth";
-import { syncPublishedData, type SyncScope } from "../../../../lib/sync";
+import type { SyncScope } from "../../../../lib/sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const schedule = request.headers.get("x-vercel-cron-schedule") || "";
   const scope = scopesBySchedule[schedule] || "all";
   try {
+    const { syncPublishedData } = await import("../../../../lib/sync");
     return Response.json(await syncPublishedData(scope));
   } catch (error) {
     return Response.json({
