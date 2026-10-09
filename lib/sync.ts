@@ -73,11 +73,7 @@ function makeSnapshot(
 /** Fetch results for the most recently completed JRA meeting, after it closes. */
 export async function syncCompletedMeetingResults(now = new Date(), requestCountBeforeResults = 0) {
   const weekday = weekdayInJst(now);
-  if (weekday !== 1 && weekday !== 2) {
-    return { ok: true, scope: "results", skipped: "結果更新の対象曜日ではありません。", externalRequestCount: 0, errors: [] as string[] };
-  }
-
-  const dates = getTargetRaceDates(now, weekday === 2 ? "last" : "current");
+  const dates = getTargetRaceDates(now, weekday === 1 ? "current" : "last");
   const weekStart = dates[0];
   const oldRaces = await readJson<RaceStore>(raceStorePath(weekStart), true);
   if (!oldRaces) {
@@ -96,13 +92,13 @@ export async function syncCompletedMeetingResults(now = new Date(), requestCount
   const oldDiscord = await readJson<DiscordMemoStore>(discordStorePath(), true);
   const memoMatches = matchRacesToMemos(oldRaces.value.races, oldDiscord?.value.memos || []);
   const matchedByRace = new Map<string, Set<string>>();
+  const targetDates = new Set(weekday === 1 ? dates.slice(0, 2) : dates);
   for (const match of memoMatches) {
-    if (!dates.slice(0, 2 + (weekday === 2 ? 1 : 0)).includes(match.date) || match.finishPosition) continue;
+    if (!targetDates.has(match.date) || match.finishPosition) continue;
     if (!matchedByRace.has(match.raceId)) matchedByRace.set(match.raceId, new Set());
     matchedByRace.get(match.raceId)!.add(match.horseName);
   }
 
-  const targetDates = new Set(dates.slice(0, 2 + (weekday === 2 ? 1 : 0)));
   const targetRaces = oldRaces.value.races.filter((race) => targetDates.has(race.date) && matchedByRace.has(race.raceId));
   if (!targetRaces.length) {
     return { ok: true, scope: "results", weekStart, matchedRaceCount: 0, externalRequestCount: 0, errors: [] as string[] };
@@ -245,15 +241,17 @@ export async function syncPublishedData(scope: SyncScope = "all", now = new Date
   const oldSnapshot = await readJson<PublishedSnapshot>(snapshotPath(weekStart), true);
   await writeJson(snapshotPath(weekStart), snapshot, oldSnapshot?.etag);
 
-  const meetingResults = scope === "today" && weekdayInJst(now) === 1
-    ? await syncCompletedMeetingResults(now, externalRequestCount)
-    : null;
-  if (meetingResults) externalRequestCount += meetingResults.externalRequestCount || 0;
-
   const backfill = scope === "all"
     ? await backfillPreviousWeek(discordStore, now)
     : { externalRequestCount: 0 };
   externalRequestCount += backfill.externalRequestCount;
+
+  const meetingResults = scope === "today" && weekdayInJst(now) === 1
+    ? await syncCompletedMeetingResults(now, externalRequestCount)
+    : scope === "all"
+      ? await syncCompletedMeetingResults(now, externalRequestCount)
+      : null;
+  if (meetingResults) externalRequestCount += meetingResults.externalRequestCount || 0;
 
   return {
     ok: true,
