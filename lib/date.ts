@@ -69,3 +69,31 @@ export function formatJstTimestamp(iso: string) {
     return iso;
   }
 }
+
+/** Most recent scheduled batch start in the site's fixed JST schedule. */
+export function getLatestExpectedSyncAt(now = new Date()) {
+  const jst = new Date(now.getTime() + JST_OFFSET_MS);
+  let latest = 0;
+  for (let offset = 0; offset <= 7; offset++) {
+    const day = new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate() - offset));
+    const weekday = day.getUTCDay();
+    const clock = weekday === 4 || weekday === 5
+      ? [22, 0]
+      : weekday === 6 || weekday === 0 || weekday === 1 || weekday === 2
+        ? [6, 30]
+        : null;
+    if (!clock) continue;
+    const expected = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), clock[0], clock[1]) - JST_OFFSET_MS;
+    if (expected <= now.getTime() && expected > latest) latest = expected;
+  }
+  return latest ? new Date(latest) : null;
+}
+
+/** Allow Vercel Hobby's up-to-59-minute cron jitter plus a small margin. */
+export function hasMissedExpectedSync(lastAttemptAt: string, now = new Date(), graceMs = 75 * 60 * 1000) {
+  const expected = getLatestExpectedSyncAt(now);
+  return Boolean(expected
+    && now.getTime() > expected.getTime() + graceMs
+    && new Date(lastAttemptAt).getTime() < expected.getTime());
+}
+

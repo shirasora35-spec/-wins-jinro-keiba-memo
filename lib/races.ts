@@ -65,6 +65,23 @@ export function extractHorses($: CheerioAPI): RaceHorse[] {
   return [...unique.values()];
 }
 
+/** Parse only complete per-horse result rows; unknown page layouts fail closed. */
+export function extractRaceResults($: CheerioAPI) {
+  const positions: Record<string, string> = {};
+  const validPosition = /^(?:\d{1,2}|取消|除外|中止|競走中止|失格|降着)$/;
+
+  $("tr.HorseList, .HorseList").each((_, row) => {
+    const el = $(row);
+    const name = clean(el.find(".HorseName, .Horse_Name, .Horse_Info a, .HorseLink a").first().text())
+      .replace(/のデータベース$/, "");
+    const position = clean(el.find(".Rank").first().text()).replace(/着$/, "");
+    if (name && validPosition.test(position)) positions[name] = position;
+  });
+
+  if (!Object.keys(positions).length) throw new Error("結果欄を確認できませんでした");
+  return positions;
+}
+
 async function fetchHtml(url: string, counter: { value: number }) {
   counter.value++;
   const response = await fetch(url, {
@@ -130,6 +147,43 @@ async function fetchNetkeibaDate(date: string, listHtml: string, counter: { valu
     return venueCmp || a.raceNumber - b.raceNumber;
   });
   return { races, failedRaceIds };
+}
+
+export async function getRaceResults(races: Race[]) {
+  const positions: Record<string, Record<string, string>> = {};
+  const errors: string[] = [];
+  const counter = { value: 0 };
+  const candidates = races.filter((race) => /^\d{12}$/.test(race.raceId));
+  for (const race of races.filter((item) => !/^\d{12}$/.test(item.raceId))) {
+    errors.push(`${race.date} ${race.venue} ${race.raceNumber}R: 自動結果取得に対応しないIDです。`);
+  }
+
+  // Results are fetched only for races that contain a memo-matched horse.
+  // Keep the same low concurrency as race-card refreshes.
+  for (let i = 0; i < candidates.length; i += 3) {
+    const chunk = candidates.slice(i, i + 3);
+    const results = await Promise.all(chunk.map(async (race) => {
+      try {
+        const html = await fetchHtml(
+          `https://race.sp.netkeiba.com/race/result.html?race_id=${race.raceId}`,
+          counter,
+        );
+        const $ = cheerio.load(html);
+        const parsed = extractRaceResults($);
+        const knownNames = new Set(race.horses.map((horse) => horse.name));
+        if (Object.keys(parsed).some((name) => !knownNames.has(name))) {
+          throw new Error("結果馬名が出走データと一致しません");
+        }
+        return { raceId: race.raceId, parsed };
+      } catch {
+        errors.push(`${race.date} ${race.venue} ${race.raceNumber}R: 結果未公開または取得失敗。次回更新で再確認します。`);
+        return null;
+      }
+    }));
+    for (const result of results) if (result) positions[result.raceId] = result.parsed;
+  }
+
+  return { positions, errors, externalRequestCount: counter.value };
 }
 
 function parseManualRaces(): Race[] {
@@ -209,3 +263,4 @@ export async function getRaces(dates: string[]) {
 
   return { races, errors, successfulDates, failedRaceIds, source: "netkeiba", externalRequestCount: counter.value };
 }
+

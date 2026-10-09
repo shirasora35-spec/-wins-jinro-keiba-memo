@@ -18,7 +18,7 @@ function load(relative, overrides = {}) {
   new Function('exports', 'require', 'module', output)(module.exports, localRequire, module);
   return module.exports;
 }
-const { getTargetRaceDates } = load('lib/date.ts');
+const { getTargetRaceDates, getLatestExpectedSyncAt, hasMissedExpectedSync } = load('lib/date.ts');
 const { matchRacesToMemos } = load('lib/match.ts');
 const { parseRaceIds } = load('lib/race-list.ts');
 
@@ -39,6 +39,16 @@ test('last week shifts all three dates and respects the JST Monday boundary', ()
     ['2026-09-12', '2026-09-13', '2026-09-14']);
   assert.deepEqual(getTargetRaceDates(new Date('2026-01-01T03:00:00Z'), 'last'),
     ['2025-12-27', '2025-12-28', '2025-12-29']);
+});
+
+test('fixed JST schedule flags a missed cron after its jitter window, without flagging idle weekdays', () => {
+  const due = getLatestExpectedSyncAt(new Date('2026-10-02T14:16:00Z'));
+  assert.equal(due.toISOString(), '2026-10-02T13:00:00.000Z'); // Friday 22:00 JST
+  assert.equal(hasMissedExpectedSync('2026-10-02T12:59:00Z', new Date('2026-10-02T14:14:59Z')), false);
+  assert.equal(hasMissedExpectedSync('2026-10-02T12:59:00Z', new Date('2026-10-02T14:16:00Z')), true);
+  assert.equal(hasMissedExpectedSync('2026-10-02T13:01:00Z', new Date('2026-10-02T14:16:00Z')), false);
+  assert.equal(getLatestExpectedSyncAt(new Date('2026-10-07T12:00:00Z')).toISOString(), '2026-10-05T21:30:00.000Z');
+  assert.equal(hasMissedExpectedSync('2026-10-05T21:31:00Z', new Date('2026-10-07T12:00:00Z')), false);
 });
 
 const horse = 'ミスティマウンテン';
@@ -74,6 +84,8 @@ test('public page only reads the published snapshot', () => {
   const page = fs.readFileSync(path.join(__dirname, '..', 'app/page.tsx'), 'utf8');
   assert.ok(page.includes('getPublishedSnapshot'));
   assert.ok(page.includes('../lib/published'));
+  assert.ok(page.includes('getPublishedSnapshot(currentDates[0])'));
+  assert.ok(!page.includes('getPublishedSnapshot(lastDates[0])'));
   assert.ok(!page.includes('../lib/sync'));
   assert.ok(!page.includes('getDiscordMemos'));
   assert.ok(!page.includes('getRaces'));
@@ -113,6 +125,16 @@ test('mobile race cards extract actual names and assigned numbers, not database 
     <tr class="HorseList"><td><dt class="Horse HorseLink"><a>ピエナオルカ</a></dt></td></tr>
   </table>`);
   assert.deepEqual(extractHorses($), [{name: horse, number: 3}, {name: 'ピエナオルカ', number: undefined}]);
+});
+
+test('race result parser associates finishing place and non-finish status with the horse', () => {
+  const { extractRaceResults } = load('lib/races.ts');
+  const $ = require('cheerio').load(`<table>
+    <tr class="HorseList"><td class="Rank">1</td><td class="Horse_Info"><a>ミスティマウンテン</a></td></tr>
+    <tr class="HorseList"><td class="Rank">取消</td><td class="Horse_Info"><a>ピエナオルカ</a></td></tr>
+  </table>`);
+  assert.deepEqual(extractRaceResults($), { 'ミスティマウンテン': '1', 'ピエナオルカ': '取消' });
+  assert.throws(() => extractRaceResults(require('cheerio').load('<div>レース結果</div>')), /結果欄/);
 });
 
 test('race refresh fetches one meeting list, only requested day cards, and retains failed card IDs', async () => {
@@ -251,3 +273,4 @@ test('published payload keeps displayed excerpts but excludes duplicated full po
     if (oldStore === undefined) delete process.env.BLOB_STORE_ID; else process.env.BLOB_STORE_ID = oldStore;
   }
 });
+

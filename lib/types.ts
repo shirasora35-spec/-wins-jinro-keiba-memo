@@ -12,6 +12,8 @@ export type DiscordMemo = {
 export type RaceHorse = {
   name: string;
   number?: number;
+  /** Numeric place or a non-finish status (e.g. 取消 / 中止), once published. */
+  finishPosition?: string;
 };
 
 export type Race = {
@@ -44,6 +46,7 @@ export type MatchedHorse = {
   raceUrl?: string;
   horseName: string;
   horseNumber?: number;
+  finishPosition?: string;
   memos: HorseMemo[];
 };
 
@@ -94,3 +97,13 @@ export type PublishedSnapshot = {
   matches: MatchedHorse[];
   diagnostics: Diagnostics;
 };
+
+export type SyncStatus = {
+  lastAttemptAt: string;
+  lastSuccessAt?: string;
+  lastScope: string;
+  outcome: "running" | "success" | "warning" | "failed";
+  diagnostic?: string;
+  externalRequestCount?: number;
+};
+

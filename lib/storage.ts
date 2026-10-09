@@ -87,3 +87,8 @@ export function raceStorePath(weekStart: string) {
 export function snapshotPath(weekStart: string) {
   return `keiba-cache/snapshots/${weekStart}.json`;
 }
+
+export function syncStatusPath() {
+  return "keiba-cache/sync-status.json";
+}
+

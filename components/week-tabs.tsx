@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Diagnostics, MatchedHorse } from "../lib/types";
-import { formatJapaneseDate, formatJstTimestamp } from "../lib/date";
+import type { Diagnostics, MatchedHorse, SyncStatus } from "../lib/types";
+import { formatJapaneseDate, formatJstTimestamp, hasMissedExpectedSync } from "../lib/date";
 
-function DayPanel({ date, horses }: { date: string; horses: MatchedHorse[] }) {
+function DayPanel({ date, horses, showResultState }: { date: string; horses: MatchedHorse[]; showResultState: boolean }) {
   const grouped = useMemo(() => {
     const map = new Map<string, MatchedHorse[]>();
     for (const horse of horses) {
@@ -45,6 +45,9 @@ function DayPanel({ date, horses }: { date: string; horses: MatchedHorse[] }) {
                   <div className="horse-title-row">
                     {horse.horseNumber ? <span className="horse-number">{horse.horseNumber}</span> : null}
                     <h3>{horse.horseName}</h3>
+                  {horse.finishPosition ? (
+                    <span className="result-chip">結果 {/^\d+$/.test(horse.finishPosition) ? `${horse.finishPosition}着` : horse.finishPosition}</span>
+                  ) : showResultState ? <span className="result-pending">結果未反映</span> : null}
                     <span className="memo-count">メモ {horse.memos.length}件</span>
                   </div>
 
@@ -90,11 +93,21 @@ export default function WeekTabs({
   raceDates,
   matches,
   diagnostics,
+  isLastWeek,
+  showResultState,
+  syncStatus,
+  monitorNow,
+  transferBytes,
 }: {
   dates: string[];
   raceDates: string[];
   matches: MatchedHorse[];
   diagnostics: Diagnostics;
+  isLastWeek: boolean;
+  showResultState: boolean;
+  syncStatus: SyncStatus | null;
+  monitorNow: string;
+  transferBytes?: number | null;
 }) {
   // Show every day that actually has JRA races, even when there are no memo horses.
   // This makes three-day meetings (Sat/Sun/Mon) appear correctly while ordinary
@@ -103,6 +116,30 @@ export default function WeekTabs({
   const tabs = raceDates.length ? raceDates : dates.slice(0, 2);
   const [active, setActive] = useState(tabs[0] || dates[0]);
   const todayMatches = matches.filter((m) => m.date === active);
+  const monitorTime = new Date(monitorNow).getTime();
+  const missedExpectedUpdate = Boolean(syncStatus
+    && hasMissedExpectedSync(syncStatus.lastAttemptAt, new Date(monitorNow)));
+  const lastSuccessAge = syncStatus?.lastSuccessAt
+    ? monitorTime - new Date(syncStatus.lastSuccessAt).getTime()
+    : Number.POSITIVE_INFINITY;
+  const monitorLabel = !syncStatus
+    ? "監視データ未記録"
+    : missedExpectedUpdate
+      ? "予定更新の遅延"
+      : syncStatus.outcome === "failed"
+      ? "直近バッチ失敗"
+      : syncStatus.outcome === "warning"
+        ? "直近バッチに警告"
+        : syncStatus.outcome === "running"
+          ? monitorTime - new Date(syncStatus.lastAttemptAt).getTime() > 15 * 60_000 ? "実行停止の可能性" : "実行中"
+          : lastSuccessAge > 8 * 24 * 60 * 60_000
+            ? "8日以上成功記録なし"
+            : "正常";
+  const transferLabel = transferBytes == null
+    ? "計測不可"
+    : transferBytes === 0
+      ? "0 B（キャッシュ利用）"
+      : `${transferBytes.toLocaleString("ja-JP")} B`;
 
   return (
     <>
@@ -125,7 +162,7 @@ export default function WeekTabs({
         })}
       </div>
 
-      <DayPanel date={active} horses={todayMatches} />
+      <DayPanel date={active} horses={todayMatches} showResultState={showResultState} />
 
       <details className="diagnostics">
         <summary>取得状況・トラブル確認</summary>
@@ -134,9 +171,15 @@ export default function WeekTabs({
           <div><dt>取得レース</dt><dd>{diagnostics.raceCount}R / {diagnostics.runnerCount}頭</dd></div>
           <div><dt>Discord</dt><dd>{diagnostics.discordChannelCount}ch / {diagnostics.discordMessageCount}メッセージ</dd></div>
           <div><dt>更新</dt><dd>{formatJstTimestamp(diagnostics.generatedAt)}</dd></div>
+          <div><dt>更新予定</dt><dd>木・金 22:00 / 土〜火 6:30（日本時間）</dd></div>
+          <div><dt>監視判定</dt><dd>{monitorLabel}</dd></div>
+          <div><dt>最終試行</dt><dd>{syncStatus ? `${formatJstTimestamp(syncStatus.lastAttemptAt)} / ${syncStatus.lastScope}` : "未記録"}</dd></div>
+          <div><dt>最終成功</dt><dd>{syncStatus?.lastSuccessAt ? formatJstTimestamp(syncStatus.lastSuccessAt) : "未記録"}</dd></div>
+          {syncStatus?.diagnostic ? <div><dt>前回の診断</dt><dd>{syncStatus.diagnostic}</dd></div> : null}
           <div><dt>表示方式</dt><dd>保存済みデータ（閲覧時の外部取得なし）</dd></div>
           <div><dt>メモ更新</dt><dd>{diagnostics.discordSyncMode === "initial" ? "初回取得" : diagnostics.discordSyncMode === "incremental" ? "増分更新" : "保存済みメモを使用"} / 新着{diagnostics.discordFetchedCount || 0}件</dd></div>
           <div><dt>前回バッチの外部取得</dt><dd>{diagnostics.externalRequestCount || 0}回（閲覧時は0回）</dd></div>
+          {isLastWeek ? <div><dt>週切替の実転送量</dt><dd>{transferLabel}</dd></div> : null}
         </dl>
         {diagnostics.errors.length ? (
           <div className="error-box">
@@ -147,3 +190,4 @@ export default function WeekTabs({
     </>
   );
 }
+
