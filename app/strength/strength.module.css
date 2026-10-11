@@ -1,0 +1,49 @@
+.page { max-width: 900px; }
+.hero { padding: 20px 0 24px; }
+.eyebrow { margin: 0 0 12px; color: var(--accent2); font-size: 12px; font-weight: 750; letter-spacing: .12em; }
+.hero h1 { margin: 0; font-size: clamp(26px, 5.5vw, 42px); letter-spacing: -.035em; line-height: 1.35; text-wrap: balance; }
+.intro { max-width: 650px; color: var(--muted); font-size: 14px; line-height: 1.85; margin: 14px 0 0; }
+.guide { border: 1px solid var(--line); border-radius: 16px; padding: 18px; background: rgba(98,160,255,.045); }
+.guide h2 { margin: 0; font-size: 15px; }
+.guide ul { margin: 12px 0 0; padding-left: 20px; color: #b5bfcd; font-size: 13px; line-height: 1.8; }
+.guide li + li { margin-top: 7px; }
+.provenance { display: flex; flex-wrap: wrap; gap: 5px 22px; padding: 16px 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.provenance p { margin: 0; line-height: 1.7; }
+.provenance a { text-decoration: underline; text-underline-offset: 3px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 14px; }
+.filters a { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; padding: 10px 15px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: #b5bfcd; font-size: 13px; line-height: 1.5; }
+.filters a[aria-current] { color: #d7e7ff; background: rgba(98,160,255,.16); border-color: var(--accent); }
+.filters a:hover { border-color: var(--accent2); }
+.page a:focus-visible, .details summary:focus-visible { outline: 3px solid var(--accent2); outline-offset: 4px; }
+.resultCount { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.cards { display: grid; gap: 20px; }
+.card { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); overflow: hidden; min-width: 0; }
+.cardHeader { padding: 20px; border-bottom: 1px solid var(--line); }
+.raceMeta { color: #b5bfcd; font-size: 12px; line-height: 1.7; margin: 0 0 7px; overflow-wrap: anywhere; }
+.cardHeader h2 { font-size: 24px; letter-spacing: .01em; margin: 0; overflow-wrap: anywhere; }
+.recordScope { color: var(--muted); font-size: 11px; margin: 7px 0 0; }
+.axisList { display: grid; }
+.axis { padding: 18px 20px; min-width: 0; }
+.axis + .axis { border-top: 1px solid var(--line); }
+.axisHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.axisHeading h3 { margin: 0; font-size: 15px; }
+.state { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 4px 9px; color: #c0cad7; background: rgba(255,255,255,.04); font-size: 11px; font-weight: 650; }
+.state[data-state="supported"] { color: #c4ffda; background: rgba(72,184,116,.12); border-color: rgba(118,212,155,.35); }
+.state[data-state="reference"] { color: #c5dcff; background: rgba(98,160,255,.1); border-color: rgba(98,160,255,.35); }
+.summary { color: #d7dee8; font-size: 14px; line-height: 1.85; margin: 12px 0 8px; overflow-wrap: anywhere; white-space: pre-line; }
+.details { color: #b5bfcd; font-size: 13px; line-height: 1.8; }
+.details summary { width: fit-content; min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--accent2); }
+.details ul { margin: 4px 0 0; padding-left: 20px; overflow-wrap: anywhere; white-space: pre-line; }
+.details li + li { margin-top: 7px; }
+.noDetails { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 8px 0 0; }
+.empty { margin-top: 24px; border: 1px dashed var(--line); border-radius: 18px; padding: 36px 22px; text-align: center; }
+.emptyMark { color: var(--accent2); font-size: 32px; }
+.empty h2 { margin: 8px 0 12px; font-size: 18px; line-height: 1.6; }
+.empty p { margin: 0 auto; max-width: 570px; color: var(--muted); font-size: 13px; line-height: 1.9; }
+.footer { color: var(--muted); font-size: 11px; line-height: 1.8; padding: 0; }
+@media (max-width: 420px) {
+  .page { padding-inline: 14px; }
+  .filters { gap: 7px; }
+  .filters a { flex: 1 1 calc(50% - 7px); padding-inline: 8px; }
+  .cardHeader, .axis { padding-inline: 16px; }
+}
