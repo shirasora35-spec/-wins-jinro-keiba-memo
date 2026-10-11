@@ -101,7 +101,14 @@ export async function syncCompletedMeetingResults(now = new Date(), requestCount
 
   const targetRaces = oldRaces.value.races.filter((race) => targetDates.has(race.date) && matchedByRace.has(race.raceId));
   if (!targetRaces.length) {
-    return { ok: true, scope: "results", weekStart, matchedRaceCount: 0, externalRequestCount: 0, errors: [] as string[] };
+    // A previous attempt may have saved results before its snapshot write
+    // failed. Republish from storage even when no external fetch is needed.
+    const snapshot = makeSnapshot(weekStart, dates, oldRaces.value, oldDiscord?.value, {
+      externalRequestCount: requestCountBeforeResults,
+    });
+    const oldSnapshot = await readJson<PublishedSnapshot>(snapshotPath(weekStart), true);
+    await writeJson(snapshotPath(weekStart), snapshot, oldSnapshot?.etag);
+    return { ok: true, scope: "results", weekStart, matchedRaceCount: 0, externalRequestCount: 0, errors: [] as string[], generatedAt: snapshot.diagnostics.generatedAt };
   }
 
   const result = await getRaceResults(targetRaces);

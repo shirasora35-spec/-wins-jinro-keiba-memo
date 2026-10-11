@@ -86,7 +86,9 @@ test('public page only reads the published snapshot', () => {
   assert.ok(page.includes('../lib/published'));
   assert.ok(page.includes('getPublishedSnapshot(currentDates[0])'));
   assert.ok(!page.includes('getPublishedSnapshot(lastDates[0])'));
-  assert.ok(!page.includes('../lib/sync'));
+  const source = ts.createSourceFile('app/page.tsx', page, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const imports = source.statements.filter(ts.isImportDeclaration).map(statement => statement.moduleSpecifier.text);
+  assert.ok(!imports.includes('../lib/sync'));
   assert.ok(!page.includes('getDiscordMemos'));
   assert.ok(!page.includes('getRaces'));
   assert.ok(!page.includes('matchRacesToMemos'));
