@@ -7,11 +7,12 @@ export const maxDuration = 300;
 
 const scopesBySchedule: Record<string, SyncScope> = {
   "0 20 * * 0": "discord",
-  "0 7 * * 4": "all",
-  "0 7 * * 5": "all",
+  "0 13 * * 4": "all",
+  "0 13 * * 5": "all",
   "30 21 * * 5": "today",
   "30 21 * * 6": "today",
   "30 21 * * 0": "today",
+  "30 21 * * 1": "results",
 };
 
 export async function GET(request: Request) {
@@ -21,11 +22,16 @@ export async function GET(request: Request) {
 
   const schedule = request.headers.get("x-vercel-cron-schedule") || "";
   const scope = scopesBySchedule[schedule] || "all";
+  const { recordSyncAttempt, recordSyncFailure, recordSyncSuccess } = await import("../../../../lib/sync-status");
+  await recordSyncAttempt(scope);
   try {
     const { syncPublishedData } = await import("../../../../lib/sync");
-    return Response.json(await syncPublishedData(scope));
+    const result = await syncPublishedData(scope);
+    await recordSyncSuccess(result);
+    return Response.json(result);
   } catch (error) {
     const diagnostic = reportSyncFailure(error);
+    await recordSyncFailure(diagnostic);
     return Response.json({
       ok: false,
       error: "Sync failed. Check storage configuration and retry.",
@@ -33,3 +39,4 @@ export async function GET(request: Request) {
     }, { status: 500 });
   }
 }
+

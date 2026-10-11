@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import PublishedPage, { PublishedView } from "../components/published-page";
 import { getTargetRaceDates } from "../lib/date";
 import { getPublishedSnapshot } from "../lib/published";
+import { getSyncStatus } from "../lib/sync-status";
 import type { PublishedSnapshot } from "../lib/types";
 
 export const revalidate = 60;
@@ -31,21 +32,23 @@ function emptySnapshot(dates: string[]): PublishedSnapshot {
 export default async function Home() {
   const now = new Date();
   const currentDates = getTargetRaceDates(now, "current");
-  const lastDates = getTargetRaceDates(now, "last");
-  const [currentSaved, lastSaved] = await Promise.all([
+  const lastWeekStart = getTargetRaceDates(now, "last")[0];
+  const [currentSaved, syncStatus] = await Promise.all([
     getPublishedSnapshot(currentDates[0]),
-    getPublishedSnapshot(lastDates[0]),
+    getSyncStatus(),
   ]);
 
   const current = currentSaved || emptySnapshot(currentDates);
-  const last = lastSaved || emptySnapshot(lastDates);
 
   return (
-    <Suspense fallback={<PublishedView snapshot={current} isLastWeek={false} />}>
+    <Suspense fallback={<PublishedView snapshot={current} isLastWeek={false} syncStatus={syncStatus} monitorNow={now.toISOString()} />}>
       <PublishedPage
         current={current}
-        last={last}
+        lastWeekStart={lastWeekStart}
+        syncStatus={syncStatus}
+        monitorNow={now.toISOString()}
       />
     </Suspense>
   );
 }
+

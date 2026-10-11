@@ -260,6 +260,7 @@ export function matchRacesToMemos(races: Race[], memos: DiscordMemo[]): MatchedH
         raceUrl: race.sourceUrl,
         horseName: horse.name,
         horseNumber: horse.number,
+        finishPosition: horse.finishPosition,
         memos: horseMemos,
       });
     }
@@ -275,3 +276,4 @@ export function matchRacesToMemos(races: Race[], memos: DiscordMemo[]): MatchedH
     return (a.horseNumber ?? 999) - (b.horseNumber ?? 999);
   });
 }
+
