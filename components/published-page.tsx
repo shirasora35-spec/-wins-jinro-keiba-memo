@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { PublishedSnapshot, SyncStatus } from "../lib/types";
 import WeekTabs from "./week-tabs";
+import { ReturnToCurrentWeek, WeekLink } from "./week-navigation";
 
 export default function PublishedPage({
   current,
@@ -60,11 +61,12 @@ export default function PublishedPage({
   if (isLastWeek && !last) {
     return (
       <main>
+        <ReturnToCurrentWeek />
         <header className="hero">
           <div className="eyebrow">WINS 人狼</div>
           <h1>競馬メモ</h1>
           <p role="status">{loading ? "先週の保存データを読み込み中です。" : error}</p>
-          {error && <p><button type="button" className="retry-button" onClick={() => setLoadAttempt((n) => n + 1)}>再読み込み</button> · <a href="/" onClick={(event) => { event.preventDefault(); window.history.pushState(null, "", "/"); }}>今週に戻る</a></p>}
+          {error && <p><button type="button" className="retry-button" onClick={() => setLoadAttempt((n) => n + 1)}>再読み込み</button></p>}
         </header>
       </main>
     );
@@ -106,6 +108,7 @@ export function PublishedView({
 
   return (
     <main>
+      {isLastWeek && <ReturnToCurrentWeek />}
       <header className="hero">
         <div className="eyebrow">WINS 人狼</div>
         <h1>競馬メモ</h1>
@@ -117,9 +120,8 @@ export function PublishedView({
         {isLastWeek ? (
           <p role="status">
             先週の開催（{dates[0]} ～ {dates[dates.length - 1]}）
-            {" · "}<a href="/" onClick={(event) => { event.preventDefault(); window.history.pushState(null, "", "/"); }}>今週の開催に戻る</a>
           </p>
-        ) : <p className="week-switch"><a href="/?week=last" onClick={(event) => { event.preventDefault(); window.history.pushState(null, "", "/?week=last"); }}>前の週のメモ馬と結果を見る ↗</a></p>}
+        ) : <p className="week-switch"><WeekLink href="/?week=last">前の週のメモ馬と結果を見る ↗</WeekLink></p>}
         <div className="summary-card">
           <span>{isLastWeek ? "前の週のメモ馬" : isMostRecentCompletedWindow ? "直近開催のメモ馬" : "今週のメモ馬"}</span>
           <strong>{uniqueHorses}</strong>
