@@ -276,3 +276,28 @@ test('published payload keeps displayed excerpts but excludes duplicated full po
   }
 });
 
+
+
+test('mobile results use the published endpoint and parse result rows without HorseList classes', async () => {
+  const originalFetch = global.fetch;
+  const race = {date: '2026-10-04', venue: '東京', raceNumber: 11, raceId: '202605040211', horses: [{name: horse}]};
+  const html = `<span id="kaisaiDate:20261004"></span><table>
+    <tr class="FirstDisplay"><td class="Result_Num"><div class="Rank">1<br>着</div></td>
+      <td class="Horse_Info"><dl><dt class="Horse_Name"><a>${horse}</a></dt></dl></td></tr>
+  </table>`;
+  global.fetch = async url => {
+    assert.equal(String(url), 'https://race.sp.netkeiba.com/?pid=race_result&race_id=202605040211');
+    return new Response(html);
+  };
+  try {
+    const {getRaceResults} = load('lib/races.ts');
+    const result = await getRaceResults([race]);
+    assert.deepEqual(result.positions, {[race.raceId]: {[horse]: '1'}});
+    assert.deepEqual(result.errors, []);
+    const wrongDate = await getRaceResults([{...race, date: '2026-10-11'}]);
+    assert.deepEqual(wrongDate.positions, {});
+    assert.equal(wrongDate.errors.length, 1);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

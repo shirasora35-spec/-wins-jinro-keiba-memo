@@ -70,7 +70,7 @@ export function extractRaceResults($: CheerioAPI) {
   const positions: Record<string, string> = {};
   const validPosition = /^(?:\d{1,2}|取消|除外|中止|競走中止|失格|降着)$/;
 
-  $("tr.HorseList, .HorseList").each((_, row) => {
+  $("tr:has(.Rank)").each((_, row) => {
     const el = $(row);
     const name = clean(el.find(".HorseName, .Horse_Name, .Horse_Info a, .HorseLink a").first().text())
       .replace(/のデータベース$/, "");
@@ -165,10 +165,12 @@ export async function getRaceResults(races: Race[]) {
     const results = await Promise.all(chunk.map(async (race) => {
       try {
         const html = await fetchHtml(
-          `https://race.sp.netkeiba.com/race/result.html?race_id=${race.raceId}`,
+          `https://race.sp.netkeiba.com/?pid=race_result&race_id=${race.raceId}`,
           counter,
         );
         const $ = cheerio.load(html);
+        const actualDate = $("[id^='kaisaiDate:']").first().attr("id")?.split(":")[1];
+        if (actualDate !== compactDate(race.date)) throw new Error("結果の日付不一致");
         const parsed = extractRaceResults($);
         const knownNames = new Set(race.horses.map((horse) => horse.name));
         if (Object.keys(parsed).some((name) => !knownNames.has(name))) {
