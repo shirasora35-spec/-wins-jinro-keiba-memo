@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import { compactDate } from "./date";
+import { normalizeStartTime } from "./race-order";
 import { parseRaceIds } from "./race-list";
 import { Race, RaceHorse } from "./types";
 
@@ -30,6 +31,13 @@ function fallbackRaceNumber(raceId: string) {
 
 function parseVenueFromText(text: string) {
   return VENUES.find((v) => text.includes(v)) || "JRA";
+}
+
+/** Read only the race metadata, never navigation, result times or page update clocks. */
+export function extractStartTime($: CheerioAPI) {
+  const metadata = clean($(".Race_Data, .RaceData01").first().text()).normalize("NFKC");
+  const match = metadata.match(/^(\d{1,2}:\d{2})(?:\s|発走|$)/);
+  return normalizeStartTime(match?.[1]);
 }
 
 export function extractHorses($: CheerioAPI): RaceHorse[] {
@@ -129,6 +137,7 @@ async function fetchNetkeibaDate(date: string, listHtml: string, counter: { valu
             venue,
             raceNumber,
             raceName,
+            startTime: extractStartTime($),
             raceId,
             sourceUrl,
             horses,
@@ -201,6 +210,7 @@ function parseManualRaces(): Race[] {
         venue: String(r.venue || "JRA"),
         raceNumber: Number(r.raceNumber || 0),
         raceName: String(r.raceName || ""),
+        startTime: normalizeStartTime(r.startTime),
         raceId: String(r.raceId || `manual-${r.date}-${r.venue}-${r.raceNumber}`),
         sourceUrl: r.sourceUrl ? String(r.sourceUrl) : undefined,
         horses: r.horses.map((h: unknown) => {

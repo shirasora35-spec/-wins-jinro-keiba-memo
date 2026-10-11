@@ -1,3 +1,4 @@
+import { groupHorsesByStartTime } from "./race-order";
 import { DiscordMemo, HorseMemo, MatchedHorse, Race } from "./types";
 
 function normalize(value: string) {
@@ -256,6 +257,7 @@ export function matchRacesToMemos(races: Race[], memos: DiscordMemo[]): MatchedH
         venue: race.venue,
         raceNumber: race.raceNumber,
         raceName: race.raceName,
+        startTime: race.startTime,
         raceId: race.raceId,
         raceUrl: race.sourceUrl,
         horseName: horse.name,
@@ -266,14 +268,5 @@ export function matchRacesToMemos(races: Race[], memos: DiscordMemo[]): MatchedH
     }
   }
 
-  return matches.sort((a, b) => {
-    const dateCmp = a.date.localeCompare(b.date);
-    if (dateCmp) return dateCmp;
-    const venueCmp = a.venue.localeCompare(b.venue, "ja");
-    if (venueCmp) return venueCmp;
-    const raceCmp = a.raceNumber - b.raceNumber;
-    if (raceCmp) return raceCmp;
-    return (a.horseNumber ?? 999) - (b.horseNumber ?? 999);
-  });
+  return groupHorsesByStartTime(matches).flatMap((race) => race.horses);
 }
-

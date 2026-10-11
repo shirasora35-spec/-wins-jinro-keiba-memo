@@ -71,7 +71,15 @@ main { width: min(100%, 880px); margin: 0 auto; padding: 28px 18px 48px; }
 .race-list { display: grid; gap: 14px; margin-top: 8px; }
 .race-card { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); overflow: hidden; }
 .race-heading { padding: 14px 15px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-.race-heading > div:first-child { display: flex; align-items: center; gap: 9px; }
+.race-heading > div:first-child { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.race-order-note { margin: 4px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.race-start-time { font-size: 19px; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.race-start-time small { margin-left: 4px; font-size: 10px; font-weight: 500; color: var(--muted); }
+.race-time-unknown { color: var(--muted); font-size: 12px; }
+@media (max-width: 480px) {
+  .race-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .race-heading .race-name { text-align: left; }
+}
 .venue-badge { padding: 4px 8px; border-radius: 8px; background: rgba(98,160,255,.16); color: #b9d3ff; font-size: 12px; font-weight: 800; }
 .race-name { color: var(--muted); font-size: 13px; text-align: right; }
 .horse-list { display: grid; }
