@@ -29,7 +29,7 @@ function DayPanel({ date, horses, showResultState }: { date: string; horses: Mat
               <div>
                 {startTime ? <time className="race-start-time" dateTime={`${date}T${startTime}:00+09:00`}>{startTime}<small>発走</small></time> : <span className="race-time-unknown">時刻未取得</span>}
                 <span className="venue-badge">{race.venue}</span>
-                <strong>{race.raceNumber}R</strong>
+                <strong className="race-number">{race.raceNumber}R</strong>
               </div>
               <div className="race-name">{race.raceName}</div>
             </div>
@@ -138,6 +138,7 @@ export default function WeekTabs({
 
   return (
     <>
+      <div className="section-heading"><h2>開催日のメモ</h2><span>Discordの回顧からピックアップ</span></div>
       <div className={tabs.length >= 3 ? "tabs three-days" : "tabs"} role="tablist" aria-label="開催日">
         {tabs.map((date) => {
           const count = matches.filter((m) => m.date === date).length;
