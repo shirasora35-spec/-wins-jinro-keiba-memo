@@ -21,6 +21,8 @@ export type Race = {
   venue: string;
   raceNumber: number;
   raceName: string;
+  /** Scheduled start in HH:mm, Japan time. Absent when not published or unavailable. */
+  startTime?: string;
   raceId: string;
   sourceUrl?: string;
   horses: RaceHorse[];
@@ -42,6 +44,8 @@ export type MatchedHorse = {
   venue: string;
   raceNumber: number;
   raceName: string;
+  /** Scheduled start in HH:mm, Japan time. Absent when not published or unavailable. */
+  startTime?: string;
   raceId: string;
   raceUrl?: string;
   horseName: string;

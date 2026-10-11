@@ -1,19 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { groupHorsesByStartTime } from "../lib/race-order";
 import type { Diagnostics, MatchedHorse, SyncStatus } from "../lib/types";
 import { formatJapaneseDate, formatJstTimestamp, hasMissedExpectedSync } from "../lib/date";
 
 function DayPanel({ date, horses, showResultState }: { date: string; horses: MatchedHorse[]; showResultState: boolean }) {
-  const grouped = useMemo(() => {
-    const map = new Map<string, MatchedHorse[]>();
-    for (const horse of horses) {
-      const key = `${horse.venue}__${horse.raceNumber}__${horse.raceName}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(horse);
-    }
-    return [...map.entries()];
-  }, [horses]);
+  const grouped = useMemo(() => groupHorsesByStartTime(horses), [horses]);
 
   if (!horses.length) {
     return (
@@ -27,12 +20,14 @@ function DayPanel({ date, horses, showResultState }: { date: string; horses: Mat
 
   return (
     <div className="race-list">
-      {grouped.map(([key, raceHorses]) => {
+      <p className="race-order-note">発走時刻順（日本時間）{grouped.some(race => !race.startTime) ? "・時刻未取得のレースは最後に表示" : ""}</p>
+      {grouped.map(({ key, startTime, horses: raceHorses }) => {
         const race = raceHorses[0];
         return (
           <section className="race-card" key={key}>
             <div className="race-heading">
               <div>
+                {startTime ? <time className="race-start-time" dateTime={`${date}T${startTime}:00+09:00`}>{startTime}<small>発走</small></time> : <span className="race-time-unknown">時刻未取得</span>}
                 <span className="venue-badge">{race.venue}</span>
                 <strong>{race.raceNumber}R</strong>
               </div>
