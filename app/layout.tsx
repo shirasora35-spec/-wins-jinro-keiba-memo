@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WINS人狼競馬メモ",
+  title: "盲点 | WINS人狼 競馬メモ",
   description: "Discordの回顧メモから今週出走するメモ馬を自動抽出",
   openGraph: {
-    title: "WINS人狼競馬メモ",
+    title: "盲点 | WINS人狼 競馬メモ",
     description: "Discordの回顧メモから今週出走するメモ馬を自動抽出",
     type: "website",
   },

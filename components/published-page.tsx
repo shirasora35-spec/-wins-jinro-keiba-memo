@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import type { PublishedSnapshot, SyncStatus } from "../lib/types";
 import WeekTabs from "./week-tabs";
@@ -63,8 +64,8 @@ export default function PublishedPage({
       <main>
         <ReturnToCurrentWeek />
         <header className="hero">
-          <div className="eyebrow">WINS 人狼</div>
-          <h1>競馬メモ</h1>
+          <div className="eyebrow">WINS 人狼 / MOUTEN</div>
+          <h1>盲点<span>競馬メモ</span></h1>
           <p role="status">{loading ? "先週の保存データを読み込み中です。" : error}</p>
           {error && <p><button type="button" className="retry-button" onClick={() => setLoadAttempt((n) => n + 1)}>再読み込み</button></p>}
         </header>
@@ -110,22 +111,26 @@ export function PublishedView({
     <main>
       {isLastWeek && <ReturnToCurrentWeek />}
       <header className="hero">
-        <div className="eyebrow">WINS 人狼</div>
-        <h1>競馬メモ</h1>
-        <p>{isLastWeek
-          ? "前の週のメモ馬と着順を確認できます。"
-          : isMostRecentCompletedWindow
-            ? "直近開催のメモ馬と着順を確認できます。"
-            : "Discordの回顧メモから、今週出走する馬だけを自動で掘り起こします。"}</p>
-        {isLastWeek ? (
-          <p role="status">
-            先週の開催（{dates[0]} ～ {dates[dates.length - 1]}）
-          </p>
-        ) : <p className="week-switch"><WeekLink href="/?week=last">前の週のメモ馬と結果を見る ↗</WeekLink></p>}
-        <div className="summary-card">
-          <span>{isLastWeek ? "前の週のメモ馬" : isMostRecentCompletedWindow ? "直近開催のメモ馬" : "今週のメモ馬"}</span>
-          <strong>{uniqueHorses}</strong>
-          <small>頭</small>
+        <div className="hero-top">
+          <div className="hero-copy">
+            <div className="eyebrow">WINS 人狼 / MOUTEN</div>
+            <h1>盲点<span>競馬メモ</span></h1>
+            <p>{isLastWeek
+              ? "前の週のメモ馬と着順を振り返る。"
+              : isMostRecentCompletedWindow
+                ? "直近開催のメモ馬と着順を振り返る。"
+                : "あの回顧を、次の一走へ。"}</p>
+          </div>
+          <Image className="hero-horse" src="/mouten-horse.jpg" alt="盲点の馬のキャラクター" width={156} height={156} sizes="(max-width: 480px) 88px, 156px" priority />
+        </div>
+        <div className="hero-bottom">
+          <div className="summary-card">
+            <span>{isLastWeek ? "前の週のメモ馬" : isMostRecentCompletedWindow ? "直近開催のメモ馬" : "今週のメモ馬"}</span>
+            <strong>{uniqueHorses}</strong><small>頭</small>
+          </div>
+          {isLastWeek ? (
+            <p className="week-period" role="status">先週の開催<br />{dates[0]} ～ {dates[dates.length - 1]}</p>
+          ) : <div className="week-switch"><WeekLink href="/?week=last">前の週のメモ馬と結果を見る <span aria-hidden="true">↗</span></WeekLink></div>}
         </div>
       </header>
 
@@ -145,6 +150,7 @@ export function PublishedView({
       </section>
 
       <footer>
+        <span className="footer-brand">盲点 <small>MOUTEN / 競馬メモ</small></span>
         <p>出走情報は外部公開情報を取得して照合しています。最終確認は主催者発表をご利用ください。</p>
       </footer>
     </main>
